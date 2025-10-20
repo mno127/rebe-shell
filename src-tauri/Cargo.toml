@@ -1,0 +1,57 @@
+[package]
+name = "rebe-shell"
+version = "0.1.0"
+description = "WASM-powered cross-platform terminal for autonomous infrastructure orchestration"
+authors = ["reBe Infrastructure"]
+license = "MIT"
+repository = "https://github.com/your-org/rebe-shell"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.5", features = ["shell-open"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.35", features = ["full"] }
+anyhow = "1.0"
+thiserror = "1.0"
+
+# PTY support
+portable-pty = "0.8"
+
+# SSH support
+ssh2 = "0.9"
+
+# WASM runtime
+wasmtime = { version = "17.0", features = ["async"] }
+wasmtime-wasi = "17.0"
+
+# Async utilities
+futures = "0.3"
+async-trait = "0.1"
+
+# Byte utilities
+bytes = "1.5"
+
+# Time utilities
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID generation
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true
