@@ -74,3 +74,39 @@ Desktop.ini
 # WASM build artifacts
 *.wasm.map
 wasm-pack.log
+
+# Workspace-specific
+
+# Assemblies (built artifacts - should not be in git)
+assemblies/binaries/
+assemblies/containers/
+assemblies/bundles/
+assemblies/checksums/
+
+# Discovery data (runtime-generated)
+meta/discovery/
+
+# Archived conversations (keep directory structure, ignore content)
+archived/conversations/*/
+archived/assemblies/
+archived/deployments/
+
+# Deployment secrets
+deployments/**/.env
+deployments/**/secrets/
+deployments/**/*.secret
+
+# Shared scripts logs
+shared/scripts/*.log
+shared/scripts/output/
+
+# Component build artifacts
+components/*/target/
+components/*/node_modules/
+components/*/dist/
+
+# Conversation-specific build artifacts
+conversations/*/target/
+conversations/*/node_modules/
+conversations/*/dist/
+conversations/*/build/
