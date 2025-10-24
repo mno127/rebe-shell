@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  rebe-shell:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rebe-shell
+    ports:
+      - "3000:3000"
+    environment:
+      - RUST_LOG=debug
+      # Pass through Claude API key if set
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+    # Mount host home directory for git operations
+    volumes:
+      - ~/.gitconfig:/root/.gitconfig:ro
+      - ~/.ssh:/root/.ssh:ro
+      # Mount Claude config if it exists
+      - ~/.config/claude:/root/.config/claude:rw
+    stdin_open: true
+    tty: true
+    networks:
+      - rebe-network
+
+networks:
+  rebe-network:
+    driver: bridge

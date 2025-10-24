@@ -1,0 +1,31 @@
+# Rust build artifacts
+backend/target
+backend/Cargo.lock
+
+# Node modules (if any)
+node_modules
+npm-debug.log
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# Docs
+*.md
+!backend/README.md
+
+# Test files
+tests
+backend/tests
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

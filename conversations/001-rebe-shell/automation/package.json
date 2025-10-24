@@ -1,0 +1,37 @@
+{
+  "name": "rebe-shell-ai-peer-review",
+  "version": "1.0.0",
+  "description": "Automated AI peer review submission via rebe-shell",
+  "main": "index.js",
+  "scripts": {
+    "install-deps": "npm install",
+    "submit-all": "node scripts/submit_all.js",
+    "submit-copilot": "node scripts/submit_copilot.js",
+    "submit-grok": "node scripts/submit_grok.js",
+    "submit-gemini": "node scripts/submit_gemini.js",
+    "submit-deepseek": "node scripts/submit_deepseek.js",
+    "compare": "node scripts/compare_results.js",
+    "api-submit-all": "node scripts/api_submit_all.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.1.3",
+    "axios": "^1.6.0",
+    "chalk": "^4.1.2",
+    "dotenv": "^16.3.0",
+    "fs-extra": "^11.2.0",
+    "openai": "^4.20.0",
+    "ora": "^5.4.1",
+    "playwright": "^1.40.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0"
+  },
+  "keywords": [
+    "rebe-shell",
+    "automation",
+    "ai",
+    "peer-review"
+  ],
+  "author": "rebe-shell contributors",
+  "license": "MIT"
+}
