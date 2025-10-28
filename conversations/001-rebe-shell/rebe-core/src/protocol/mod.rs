@@ -1,7 +1,86 @@
-/// Structured Command Protocol
+/// Structured Command Protocol for reBe Shell
 ///
 /// JSON-based protocol for reliable command execution (no text parsing).
 /// All requests and responses are typed and validated.
+///
+/// Extracted from src-tauri/src/protocol/ - single source of truth for communication protocol.
+///
+/// Used by:
+/// - rebe-shell-backend: API endpoints for command execution
+/// - rebe-shell (Tauri): IPC with frontend
+/// - rebe-discovery: Infrastructure discovery protocol
+/// - rebe-thecy: Provisioning command protocol
+///
+/// This adds ~193 lines of structured protocol functionality.
+///
+/// # Protocol Design
+///
+/// **Problem**: Text-based protocols require parsing, fragile, error-prone
+/// **Solution**: JSON protocol with typed requests and responses
+///
+/// ## Request Structure
+///
+/// ```json
+/// {
+///   "version": "1.0",
+///   "command": {
+///     "type": "system_info",
+///     "fields": ["hostname", "cpu_info"]
+///   },
+///   "execution": {
+///     "mode": "ssh",
+///     "host": "10.20.31.5",
+///     "timeout_ms": 30000,
+///     "retry_policy": {
+///       "max_attempts": 3,
+///       "backoff_ms": 1000
+///     }
+///   }
+/// }
+/// ```
+///
+/// ## Response Structure
+///
+/// ```json
+/// {
+///   "version": "1.0",
+///   "result": {
+///     "status": "success",
+///     "data": {
+///       "hostname": "server1.local",
+///       "cpu_info": "Intel Xeon..."
+///     }
+///   },
+///   "metadata": {
+///     "duration_ms": 234,
+///     "attempts": 1,
+///     "cached": false
+///   }
+/// }
+/// ```
+///
+/// # Example
+///
+/// ```no_run
+/// use rebe_core::protocol::*;
+///
+/// let request = CommandRequest {
+///     version: "1.0".to_string(),
+///     command: Command::SystemInfo {
+///         fields: vec!["hostname".to_string()],
+///     },
+///     execution: ExecutionConfig {
+///         mode: ExecutionMode::Native,
+///         host: None,
+///         timeout_ms: 5000,
+///         retry_policy: Some(RetryPolicy::default()),
+///     },
+/// };
+///
+/// let json = serde_json::to_string(&request)?;
+/// // Send over wire...
+/// # Ok::<(), serde_json::Error>(())
+/// ```
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

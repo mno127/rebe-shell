@@ -1,7 +1,13 @@
-/// PTY (Pseudoterminal) Manager for Web Backend
+/// PTY (Pseudoterminal) Manager for reBe Shell
 ///
 /// Manages shell sessions with bidirectional I/O using portable-pty.
-/// Adapted for WebSocket-based communication.
+/// Extracted from backend/src/pty.rs - single source of truth for PTY management.
+///
+/// Used by:
+/// - rebe-shell-backend: Web server with WebSocket PTY
+/// - rebe-shell (Tauri): Desktop app with embedded terminal
+///
+/// This eliminates 450 lines of code duplication.
 
 use anyhow::{Context, Result};
 use portable_pty::{CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};

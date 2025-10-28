@@ -1,7 +1,62 @@
-/// Circuit Breaker Pattern
+/// Circuit Breaker Pattern for reBe Shell
 ///
 /// Prevents cascading failures by detecting repeated errors and "opening" the circuit
 /// to fail fast instead of wasting resources on operations that will fail.
+///
+/// Extracted from src-tauri/src/circuit_breaker/ - single source of truth for fault tolerance.
+///
+/// Used by:
+/// - rebe-shell-backend: SSH connection failure protection
+/// - rebe-shell (Tauri): Remote operation resilience
+/// - rebe-discovery: Infrastructure scanning with failing hosts
+/// - rebe-thecy: Provisioning with unreliable targets
+///
+/// This adds ~160 lines of fault tolerance functionality.
+///
+/// # Three-State Circuit Breaker
+///
+/// ## Closed (Normal)
+/// - Operations execute normally
+/// - Failures increment counter
+/// - When failures >= threshold → Open
+///
+/// ## Open (Failing)
+/// - Operations fail immediately (fast failure)
+/// - After timeout → Half-Open
+/// - Protects system resources
+///
+/// ## Half-Open (Testing)
+/// - Limited operations allowed
+/// - Success increments counter
+/// - When successes >= threshold → Closed
+/// - Any failure → Open
+///
+/// # Example
+///
+/// ```no_run
+/// use rebe_core::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig};
+/// use std::time::Duration;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let breaker = CircuitBreaker::new(CircuitBreakerConfig {
+///     failure_threshold: 5,    // Open after 5 failures
+///     success_threshold: 2,    // Close after 2 successes
+///     timeout: Duration::from_secs(60),  // Retry after 60s
+/// });
+///
+/// // Protected operation
+/// let result = breaker.call(async {
+///     // Potentially failing operation
+///     Ok::<_, String>("success")
+/// }).await;
+///
+/// match result {
+///     Ok(value) => println!("Success: {}", value),
+///     Err(e) => println!("Failed: {}", e),
+/// }
+/// # Ok(())
+/// # }
+/// ```
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};

@@ -1,11 +1,11 @@
 // Prevents additional console window on Windows in release mode
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod circuit_breaker;
-mod protocol;
+// Circuit breaker moved to rebe-core - use rebe_core::circuit_breaker::* when needed
+// Protocol moved to rebe-core - use rebe_core::protocol::* when needed
 mod pty;
-mod ssh;
-mod stream;
+// SSH moved to rebe-core - use rebe_core::ssh::* when needed
+// Stream moved to rebe-core - use rebe_core::stream::* when needed
 mod wasm;
 
 use tauri::Manager;

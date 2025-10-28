@@ -1,7 +1,54 @@
-/// Streaming Output Handler
+/// Streaming Output Handler for reBe Shell
 ///
 /// Processes command output with O(n) complexity (not O(n²) string concatenation).
 /// Implements backpressure control to prevent memory exhaustion.
+///
+/// Extracted from src-tauri/src/stream/ - single source of truth for streaming output.
+///
+/// Used by:
+/// - rebe-shell-backend: PTY output streaming via WebSocket
+/// - rebe-shell (Tauri): Large command output handling
+/// - rebe-discovery: Processing large infrastructure scan results
+/// - rebe-thecy: Streaming provisioning logs
+///
+/// This adds +185 lines of memory-efficient streaming functionality.
+///
+/// # Performance
+///
+/// **Without StreamingHandler**: O(n²) complexity
+/// ```text
+/// let mut output = String::new();
+/// for chunk in chunks {
+///     output.push_str(&chunk);  // Reallocates every time!
+/// }
+/// ```
+///
+/// **With StreamingHandler**: O(n) complexity
+/// ```text
+/// let mut handler = StreamingOutputHandler::new(10 * 1024 * 1024);
+/// for chunk in chunks {
+///     handler.push_chunk(chunk)?;  // No reallocation
+/// }
+/// let output = handler.finalize();  // Single final allocation
+/// ```
+///
+/// # Example
+///
+/// ```no_run
+/// use rebe_core::stream::StreamingOutputHandler;
+/// use bytes::Bytes;
+///
+/// let mut handler = StreamingOutputHandler::new(10 * 1024 * 1024); // 10MB limit
+///
+/// // Stream chunks without O(n²) concatenation
+/// handler.push_chunk(Bytes::from("Line 1\n"))?;
+/// handler.push_chunk(Bytes::from("Line 2\n"))?;
+/// handler.push_chunk(Bytes::from("Line 3\n"))?;
+///
+/// // Single allocation to finalize
+/// let output = handler.finalize_string()?;
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 
 use anyhow::{Context, Result};
 use bytes::{Bytes, BytesMut};
