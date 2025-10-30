@@ -1,13 +1,12 @@
-/// rebe-shell Backend Server - Full Integration
+/// rebe-shell Backend Server
 ///
-/// Unified shell with local PTY, SSH (with pooling), and Browser automation
+/// Unified terminal for local and remote command execution
 ///
 /// Features:
 /// - Local shell via PTY
 /// - SSH with connection pooling (200-300x faster)
-/// - Browser automation via rebe-browser API
 /// - Circuit breakers for fault tolerance
-/// - Command routing (ssh, browser, local)
+/// - Command routing (local vs remote SSH)
 /// - Real-time streaming via WebSocket
 
 use axum::{
@@ -48,7 +47,6 @@ struct AppState {
     pty_manager: Arc<PtyManager>,
     ssh_pool: Arc<SSHPool>,
     circuit_breakers: Arc<Mutex<HashMap<String, CircuitBreaker>>>,
-    browser_client: reqwest::Client,
     ssh_key_path: PathBuf,
 }
 
@@ -58,7 +56,6 @@ impl AppState {
             pty_manager: Arc::new(PtyManager::new()?),
             ssh_pool: Arc::new(SSHPool::new(PoolConfig::default())),
             circuit_breakers: Arc::new(Mutex::new(HashMap::new())),
-            browser_client: reqwest::Client::new(),
             ssh_key_path: PathBuf::from(
                 std::env::var("SSH_KEY_PATH")
                     .unwrap_or_else(|_| format!("{}/.ssh/id_rsa", std::env::var("HOME").unwrap()))
@@ -85,7 +82,6 @@ impl AppState {
 enum Command {
     Local { input: Vec<u8> },
     SSH { host: String, port: u16, user: String, command: String },
-    Browser { url: String, script: Option<String> },
 }
 
 /// Parse command from input
@@ -95,13 +91,6 @@ fn parse_command(input: &str) -> Command {
     // Check for SSH command: ssh user@host "command" or ssh user@host:port "command"
     if trimmed.starts_with("ssh ") {
         if let Some(parsed) = parse_ssh_command(&trimmed[4..]) {
-            return parsed;
-        }
-    }
-
-    // Check for browser command: browser <url> [script]
-    if trimmed.starts_with("browser ") {
-        if let Some(parsed) = parse_browser_command(&trimmed[8..]) {
             return parsed;
         }
     }
@@ -138,15 +127,6 @@ fn parse_ssh_command(input: &str) -> Option<Command> {
     };
 
     Some(Command::SSH { host, port, user, command })
-}
-
-fn parse_browser_command(input: &str) -> Option<Command> {
-    // Parse: <url> [script]
-    let parts: Vec<&str> = input.splitn(2, ' ').collect();
-    let url = parts[0].to_string();
-    let script = parts.get(1).map(|s| s.trim_matches('"').to_string());
-
-    Some(Command::Browser { url, script })
 }
 
 /// WebSocket message from client
@@ -202,13 +182,6 @@ struct SshExecuteResponse {
     exit_code: i32,
 }
 
-/// Browser execute request
-#[derive(Debug, Deserialize)]
-struct BrowserExecuteRequest {
-    url: String,
-    script: Option<String>,
-}
-
 #[tokio::main]
 async fn main() {
     // Initialize tracing
@@ -228,7 +201,6 @@ async fn main() {
         .route("/api/sessions", post(create_session))
         .route("/api/sessions/:id/ws", get(websocket_handler))
         .route("/api/ssh/execute", post(ssh_execute))
-        .route("/api/browser/execute", post(browser_execute))
         .route("/health", get(health_check))
         .fallback_service(ServeDir::new("./dist").fallback(tower_http::services::ServeFile::new("./dist/index.html")))
         .layer(CorsLayer::permissive())
@@ -236,10 +208,9 @@ async fn main() {
 
     // Start server
     let addr = "0.0.0.0:3000";
-    tracing::info!("Starting rebe-shell backend (full integration) on {}", addr);
+    tracing::info!("Starting rebe-shell backend on {}", addr);
     tracing::info!("  - PTY sessions via WebSocket");
-    tracing::info!("  - SSH with connection pooling");
-    tracing::info!("  - Browser automation via rebe-browser");
+    tracing::info!("  - SSH with connection pooling (200-300x faster)");
     tracing::info!("  - Circuit breakers for fault tolerance");
 
     let listener = tokio::net::TcpListener::bind(addr)
@@ -256,12 +227,11 @@ async fn health_check() -> impl IntoResponse {
     Json(json!({
         "status": "healthy",
         "service": "rebe-shell-backend",
-        "version": "2.0.0",
+        "version": "2.0.1",
         "features": {
             "pty": true,
             "ssh": true,
             "ssh_pooling": true,
-            "browser": true,
             "circuit_breaker": true
         }
     }))
@@ -323,27 +293,6 @@ async fn ssh_execute(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
-}
-
-/// Browser execute endpoint
-async fn browser_execute(
-    State(state): State<AppState>,
-    Json(req): Json<BrowserExecuteRequest>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let response = state.browser_client
-        .post("http://localhost:8080/api/execute")
-        .json(&json!({
-            "url": req.url,
-            "script": req.script.unwrap_or_default(),
-        }))
-        .send()
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
-
-    let result = response.json().await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Json(result))
 }
 
 /// WebSocket handler for PTY I/O
@@ -490,7 +439,7 @@ async fn handle_websocket(socket: WebSocket, session_id: SessionId, state: AppSt
     }
 }
 
-/// Process command with routing to SSH, Browser, or Local
+/// Process command with routing to SSH or Local
 async fn process_command(
     state: &AppState,
     session_id: SessionId,
@@ -513,19 +462,6 @@ async fn process_command(
 
             // Execute SSH command
             handle_ssh_command(state, session_id, &host, port, &user, &command).await?;
-        }
-
-        Command::Browser { url, script } => {
-            // Write command echo to PTY
-            let echo = if let Some(ref s) = script {
-                format!("browser {} \"{}\"\r\n", url, s)
-            } else {
-                format!("browser {}\r\n", url)
-            };
-            state.pty_manager.write(session_id, echo.as_bytes()).await?;
-
-            // Execute browser command
-            handle_browser_command(state, session_id, &url, script.as_deref()).await?;
         }
     }
 
@@ -579,44 +515,6 @@ async fn handle_ssh_command(
         }
         Err(CircuitBreakerError::OperationFailed(e)) => {
             let error = format!("[SSH: {}] Error: {}\r\n", host, e);
-            state.pty_manager.write(session_id, error.as_bytes()).await?;
-        }
-    }
-
-    Ok(())
-}
-
-/// Handle browser command
-async fn handle_browser_command(
-    state: &AppState,
-    session_id: SessionId,
-    url: &str,
-    script: Option<&str>,
-) -> anyhow::Result<()> {
-    // Write status
-    state.pty_manager.write(session_id, b"[Browser] Starting...\r\n").await?;
-
-    // Call rebe-browser API
-    let response = state.browser_client
-        .post("http://localhost:8080/api/execute")
-        .json(&json!({
-            "url": url,
-            "script": script.unwrap_or(""),
-        }))
-        .send()
-        .await;
-
-    match response {
-        Ok(resp) => {
-            if let Ok(result) = resp.json::<serde_json::Value>().await {
-                let output = format!("[Browser] Result: {}\r\n", result);
-                state.pty_manager.write(session_id, output.as_bytes()).await?;
-            } else {
-                state.pty_manager.write(session_id, b"[Browser] ✓ Complete\r\n").await?;
-            }
-        }
-        Err(e) => {
-            let error = format!("[Browser] Error: {}\r\n", e);
             state.pty_manager.write(session_id, error.as_bytes()).await?;
         }
     }

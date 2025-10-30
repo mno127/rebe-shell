@@ -38,9 +38,6 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 # Base64 encoding for binary data over JSON
 base64 = "0.21"
 
-# HTTP client for rebe-browser API
-reqwest = { version = "0.11", features = ["json"] }
-
 [profile.release]
 opt-level = 3
 lto = true

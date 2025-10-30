@@ -1,10 +1,9 @@
 /**
- * reBe Shell - Full Integration Frontend v2.0.0
+ * reBe Shell - Frontend v2.0.1
  *
- * Unified terminal with:
+ * Unified terminal for local and remote command execution:
  * - Local shell (PTY via WebSocket)
- * - SSH with connection pooling
- * - Browser automation via rebe-browser
+ * - SSH with connection pooling (200-300x faster)
  * - Circuit breaker monitoring
  * - Real-time status updates
  */
@@ -32,14 +31,13 @@ const sshConnections: Map<string, { host: string; user: string; status: string }
  * Initialize the application
  */
 async function init() {
-  console.log('[reBe Shell] Initializing full integration v2.0.0...');
+  console.log('[reBe Shell] Initializing v2.0.1...');
 
   // Setup terminal
   await setupTerminal();
 
   // Setup UI panels
   setupSSHPanel();
-  setupBrowserPanel();
   setupStatusPanel();
 
   // Create PTY session
@@ -102,20 +100,18 @@ async function setupTerminal() {
 
   // Welcome message
   terminal.writeln('\x1b[1;36m╔════════════════════════════════════════════════════════════╗\x1b[0m');
-  terminal.writeln('\x1b[1;36m║\x1b[0m  \x1b[1;32mreBe Shell - Full Integration v2.0.0\x1b[0m                    \x1b[1;36m║\x1b[0m');
+  terminal.writeln('\x1b[1;36m║\x1b[0m  \x1b[1;32mreBe Shell v2.0.1\x1b[0m                                       \x1b[1;36m║\x1b[0m');
   terminal.writeln('\x1b[1;36m╚════════════════════════════════════════════════════════════╝\x1b[0m');
   terminal.writeln('');
-  terminal.writeln('\x1b[1;33mUnified Infrastructure Control\x1b[0m');
+  terminal.writeln('\x1b[1;33mUnified Terminal for Local & Remote Execution\x1b[0m');
   terminal.writeln('');
   terminal.writeln('\x1b[1;37mFeatures:\x1b[0m');
   terminal.writeln('  \x1b[32m•\x1b[0m Local shell (PTY)');
   terminal.writeln('  \x1b[32m•\x1b[0m SSH with connection pooling (200-300x faster)');
-  terminal.writeln('  \x1b[32m•\x1b[0m Browser automation (rebe-browser API)');
   terminal.writeln('  \x1b[32m•\x1b[0m Circuit breakers for fault tolerance');
   terminal.writeln('');
   terminal.writeln('\x1b[1;37mCommands:\x1b[0m');
   terminal.writeln('  \x1b[1;36mssh\x1b[0m user@host "command"     - Execute SSH command');
-  terminal.writeln('  \x1b[1;36mbrowser\x1b[0m url [script]       - Browser automation');
   terminal.writeln('  \x1b[1;36mls\x1b[0m, \x1b[1;36mcd\x1b[0m, etc.               - Local shell commands');
   terminal.writeln('');
   terminal.writeln('\x1b[90mConnecting to backend...\x1b[0m');
@@ -355,117 +351,6 @@ function updateSSHConnectionsList() {
 }
 
 /**
- * Setup Browser Panel
- */
-function setupBrowserPanel() {
-  const browserPanel = document.getElementById('browser-panel');
-  if (!browserPanel) return;
-
-  browserPanel.innerHTML = `
-    <div class="panel">
-      <h3>Browser Automation</h3>
-      <div class="panel-content">
-        <div class="browser-form">
-          <input type="text" id="browser-url" placeholder="URL (e.g., https://example.com)" class="input-field" />
-          <textarea id="browser-script" placeholder="JavaScript (optional)" rows="4" class="input-field"></textarea>
-          <button id="browser-execute" class="btn btn-primary">Execute</button>
-        </div>
-        <div id="browser-status" class="status-display"></div>
-      </div>
-    </div>
-  `;
-
-  const executeButton = document.getElementById('browser-execute');
-  executeButton?.addEventListener('click', executeBrowserCommand);
-
-  // Show example on focus
-  const urlInput = document.getElementById('browser-url') as HTMLInputElement;
-  urlInput?.addEventListener('focus', () => {
-    if (!urlInput.value) {
-      document.getElementById('browser-status')!.innerHTML = `
-        <div class="info-box">
-          <strong>Examples:</strong><br/>
-          URL: https://example.com<br/>
-          Script: <code>await page.waitForSelector('h1'); return await page.title();</code>
-        </div>
-      `;
-    }
-  });
-}
-
-/**
- * Execute browser command
- */
-async function executeBrowserCommand() {
-  const urlInput = document.getElementById('browser-url') as HTMLInputElement;
-  const scriptInput = document.getElementById('browser-script') as HTMLTextAreaElement;
-  const statusDiv = document.getElementById('browser-status');
-
-  const url = urlInput?.value.trim();
-  const script = scriptInput?.value.trim();
-
-  if (!url) {
-    alert('Please enter a URL');
-    return;
-  }
-
-  terminal?.writeln(`\r\n\x1b[35m[Browser]\x1b[0m Executing on ${url}...`);
-
-  if (statusDiv) {
-    statusDiv.innerHTML = '<div class="status-pending">⋯ Executing...</div>';
-  }
-
-  try {
-    const response = await fetch(`${BACKEND_URL}/api/browser/execute`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url,
-        script: script || undefined,
-      }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      terminal?.writeln(`\x1b[32m✓ Success: ${JSON.stringify(data, null, 2)}\x1b[0m`);
-
-      if (statusDiv) {
-        statusDiv.innerHTML = `
-          <div class="status-ok">
-            ✓ Success<br/>
-            <pre>${JSON.stringify(data, null, 2)}</pre>
-          </div>
-        `;
-      }
-    } else if (response.status === 502) {
-      terminal?.writeln(`\x1b[31m✗ rebe-browser not available (Bad Gateway)\x1b[0m`);
-      terminal?.writeln(`\x1b[90m  Is rebe-browser running on port 8080?\x1b[0m`);
-
-      if (statusDiv) {
-        statusDiv.innerHTML = `
-          <div class="status-error">
-            ✗ rebe-browser not available<br/>
-            <small>Start rebe-browser on port 8080</small>
-          </div>
-        `;
-      }
-    } else {
-      terminal?.writeln(`\x1b[31m✗ Error: ${response.statusText}\x1b[0m`);
-
-      if (statusDiv) {
-        statusDiv.innerHTML = `<div class="status-error">✗ Error: ${response.statusText}</div>`;
-      }
-    }
-  } catch (error) {
-    terminal?.writeln(`\x1b[31m✗ Error: ${error}\x1b[0m`);
-
-    if (statusDiv) {
-      statusDiv.innerHTML = `<div class="status-error">✗ Error: ${error}</div>`;
-    }
-  }
-}
-
-/**
  * Setup Status Panel
  */
 function setupStatusPanel() {
@@ -492,10 +377,6 @@ function setupStatusPanel() {
           <div class="status-item">
             <span class="status-label">SSH Pooling:</span>
             <span id="status-ssh" class="status-value">-</span>
-          </div>
-          <div class="status-item">
-            <span class="status-label">Browser:</span>
-            <span id="status-browser" class="status-value">-</span>
           </div>
           <div class="status-item">
             <span class="status-label">Circuit Breaker:</span>
@@ -550,7 +431,6 @@ async function checkHealth() {
 
       updateFeature('status-pty', data.features.pty);
       updateFeature('status-ssh', data.features.ssh_pooling);
-      updateFeature('status-browser', data.features.browser);
       updateFeature('status-circuit', data.features.circuit_breaker);
     }
 
@@ -562,7 +442,7 @@ async function checkHealth() {
     }
 
     // Reset all features to unknown
-    ['status-version', 'status-pty', 'status-ssh', 'status-browser', 'status-circuit'].forEach(id => {
+    ['status-version', 'status-pty', 'status-ssh', 'status-circuit'].forEach(id => {
       const element = document.getElementById(id);
       if (element) {
         element.textContent = '-';

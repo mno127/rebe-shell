@@ -94,7 +94,7 @@ body {
 }
 
 /* Forms */
-.ssh-form, .browser-form {
+.ssh-form {
   display: flex;
   flex-direction: column;
   gap: 10px;
