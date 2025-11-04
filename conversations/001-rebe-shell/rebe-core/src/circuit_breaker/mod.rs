@@ -147,7 +147,7 @@ impl CircuitBreaker {
                 Ok(value)
             }
             Err(e) => {
-                *state = match *state {
+                let new_state = match &*state {
                     BreakerState::Closed { failures } => {
                         if failures + 1 >= self.config.failure_threshold {
                             tracing::warn!("Circuit breaker opening (too many failures)");
@@ -166,8 +166,11 @@ impl CircuitBreaker {
                             opened_at: Instant::now(),
                         }
                     }
-                    s => s,
+                    BreakerState::Open { opened_at } => BreakerState::Open {
+                        opened_at: *opened_at,
+                    },
                 };
+                *state = new_state;
 
                 Err(CircuitBreakerError::OperationFailed(e))
             }

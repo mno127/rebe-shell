@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use ssh2::Session;
 use std::collections::HashMap;
-use std::net::TcpStream;
+use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -127,7 +127,6 @@ impl SSHPool {
         .context("Failed to connect")?;
 
         // Convert to std TcpStream (ssh2 requires std)
-        tcp.set_nonblocking(false)?;
         let std_tcp = tcp.into_std()?;
 
         let mut session = Session::new()?;

@@ -70,18 +70,20 @@ impl StreamingOutputHandler {
 
     /// Push a chunk of data (fails if exceeds max_size)
     pub fn push_chunk(&mut self, data: Bytes) -> Result<()> {
-        if self.total_size + data.len() > self.max_size {
+        let data_len = data.len();
+
+        if self.total_size + data_len > self.max_size {
             anyhow::bail!(
                 "Output too large: {} bytes (max: {} bytes)",
-                self.total_size + data.len(),
+                self.total_size + data_len,
                 self.max_size
             );
         }
 
-        self.total_size += data.len();
+        self.total_size += data_len;
         self.chunks.push(data);
 
-        tracing::trace!("Pushed chunk: {} bytes (total: {})", data.len(), self.total_size);
+        tracing::trace!("Pushed chunk: {} bytes (total: {})", data_len, self.total_size);
 
         Ok(())
     }

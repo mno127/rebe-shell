@@ -198,6 +198,8 @@ async fn main() {
 
     // Build router
     let app = Router::new()
+        .route("/api/capabilities", get(get_capabilities))
+        .route("/api/discover", post(discover_things))
         .route("/api/sessions", post(create_session))
         .route("/api/sessions/:id/ws", get(websocket_handler))
         .route("/api/ssh/execute", post(ssh_execute))
@@ -220,6 +222,134 @@ async fn main() {
     axum::serve(listener, app)
         .await
         .expect("Server error");
+}
+
+/// Capabilities discovery endpoint (Thing-first architecture)
+async fn get_capabilities() -> impl IntoResponse {
+    Json(json!({
+        "success": true,
+        "thing": {
+            "thingId": "shell-backend",
+            "type": "coordination-engine",
+            "category": "shell"
+        },
+        "provides": {
+            "execute-local": {
+                "method": "WebSocket",
+                "path": "/api/sessions/:id/ws",
+                "description": "Execute local shell commands via PTY",
+                "schema": {
+                    "input": "base64-encoded command",
+                    "rows": "number (optional)",
+                    "cols": "number (optional)"
+                }
+            },
+            "execute-ssh": {
+                "method": "POST",
+                "path": "/api/ssh/execute",
+                "description": "Execute command on remote host via SSH with pooling",
+                "schema": {
+                    "host": "string",
+                    "port": "number (default: 22)",
+                    "user": "string",
+                    "command": "string"
+                }
+            },
+            "discover": {
+                "method": "POST",
+                "path": "/api/discover",
+                "description": "Discover available things and capabilities",
+                "schema": {
+                    "capability": "string",
+                    "forThing": "string (optional)"
+                }
+            }
+        },
+        "coordinatesWith": [
+            {
+                "thing": "browser",
+                "api": "http://localhost:3031",
+                "capabilities": ["navigate", "extract", "screenshot", "visualize-3d"]
+            },
+            {
+                "thing": "portal",
+                "api": "http://localhost:8080",
+                "capabilities": ["wasm", "semantic-search"]
+            }
+        ],
+        "version": "2.0.1",
+        "features": {
+            "ptyManager": true,
+            "sshPooling": true,
+            "circuitBreaker": true,
+            "streamingHandler": true,
+            "thingCoordination": false,
+            "naturalLanguage": false
+        },
+        "api": {
+            "baseUrl": "http://localhost:3000/api",
+            "documentation": "/health",
+            "websocket": "ws://localhost:3000/api/sessions/:id/ws"
+        }
+    }))
+}
+
+/// Discover available things and their capabilities
+#[derive(Debug, Deserialize)]
+struct DiscoverRequest {
+    capability: Option<String>,
+    #[serde(rename = "forThing")]
+    for_thing: Option<String>,
+}
+
+async fn discover_things(
+    Json(req): Json<DiscoverRequest>,
+) -> impl IntoResponse {
+    // For now, return static registry of known things
+    // Future: Query service registry (Consul) or scan network
+    let mut available = vec![];
+
+    // Check if Browser is available
+    if let Ok(response) = reqwest::get("http://localhost:3031/api/capabilities").await {
+        if response.status().is_success() {
+            if let Ok(caps) = response.json::<serde_json::Value>().await {
+                if req.capability.is_none() ||
+                   caps["provides"].as_object().map(|p| p.contains_key(req.capability.as_ref().unwrap().as_str())).unwrap_or(false) {
+                    available.push(json!({
+                        "thing": caps["thing"]["thingId"],
+                        "type": caps["thing"]["type"],
+                        "api": "http://localhost:3031",
+                        "capabilities": caps["provides"]
+                    }));
+                }
+            }
+        }
+    }
+
+    // Check if Portal is available
+    if let Ok(response) = reqwest::get("http://localhost:8080/api/instance").await {
+        if response.status().is_success() {
+            available.push(json!({
+                "thing": "portal",
+                "type": "wasm-runtime",
+                "api": "http://localhost:8080",
+                "capabilities": {
+                    "wasm": "Execute WASM components",
+                    "semantic-search": "Search documents with embeddings"
+                }
+            }));
+        }
+    }
+
+    Json(json!({
+        "success": true,
+        "found": available.len(),
+        "things": available,
+        "query": {
+            "capability": req.capability,
+            "forThing": req.for_thing
+        }
+    }))
 }
 
 /// Health check endpoint
